@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gestión de Stock de Vacunas</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --danger: #dc2626;
+      --danger-bg: #fee2e2;
+      --warning: #d97706;
+      --warning-bg: #fef3c7;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 70px; }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    header span { font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; }
+
+    nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 0.5rem 0;
+      z-index: 100;
+    }
+    nav button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      width: 100%;
+    }
+    nav button.active { color: var(--primary); font-weight: bold; }
+    nav button svg { width: 22px; height: 22px; fill: currentColor; }
+
+    main { padding: 1rem; max-width: 1050px; margin: 0 auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .grid-kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .kpi-card {
+      background: var(--card);
+      padding: 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .kpi-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+    .kpi-val { font-size: 1.4rem; font-weight: bold; margin-top: 4px; }
+    .kpi-val.danger { color: var(--danger); }
+    .kpi-val.warning { color: var(--warning); }
+
+    .chart-container, .card {
+      background: var(--card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--primary-dark); }
+
+    .form-group { margin-bottom: 0.85rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background-color: white;
+    }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 0.75rem;
+    }
+
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: left; }
+    th, td { padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); }
+    th { background: #f1f5f9; color: var(--text-muted); font-weight: 600; }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-danger { background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .badge-warning { background-color: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+    .badge-success { background-color: var(--success-bg); color: var(--success); }
+    .row-critical { background-color: #fff1f2; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>StockVacunas Pro</h1>
+    <span>Frío: 2°C a 8°C</span>
+  </header>
+
+  <main>
+    <!-- TAB 1: DASHBOARD -->
+    <section id="tab-dash" class="tab-content active">
+      <div class="grid-kpi">
+        <div class="kpi-card">
+          <div class="kpi-title">Dosis Totales</div>
+          <div class="kpi-val" id="kpi-total">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Lotes Registrados</div>
+          <div class="kpi-val" id="kpi-lotes">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Lotes Bajo Mínimo</div>
+          <div class="kpi-val warning" id="kpi-min">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Caducan &lt;30d</div>
+          <div class="kpi-val danger" id="kpi-exp">0</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h2>Dosis Disponibles por Vacuna</h2>
+        <canvas id="chartStock" height="220"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Lotes Críticos o con Alerta Activa</h2>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Dosis</th>
+                <th>Caducidad</th>
+                <th>Alerta</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-criticos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: INVENTARIO -->
+    <section id="tab-inv" class="tab-content">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <h2>Inventario Completo (61 Lotes)</h2>
+          <button class="btn-secondary" onclick="resetearDatosOriginales()">Restaurar datos de Excel</button>
+        </div>
+        <div class="form-group">
+          <input type="text" id="buscador" placeholder="Buscar por vacuna, código o lote..." oninput="renderInventario()">
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Código</th>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Caducidad</th>
+                <th>Nev. 2B</th>
+                <th>Nev. 3B</th>
+                <th>Total</th>
+                <th>Mín.</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inv"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: REGISTRO DE MOVIMIENTOS -->
+    <section id="tab-mov" class="tab-content">
+      <div class="card">
+        <h2>Registrar Entrada / Salida</h2>
+        <form id="form-movimiento" onsubmit="handleMovimiento(event)">
+          <div class="form-group">
+            <label>Tipo de Operación</label>
+            <select id="mov-tipo" required onchange="toggleFormFields()">
+              <option value="SALIDA">Salida: Aplicación a paciente / Restar dosis</option>
+              <option value="ENTRADA">Entrada: Recepción de nuevo lote / Añadir stock</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Vacuna</label>
+            <select id="mov-vacuna-select" required onchange="actualizarLotesDisponibles()"></select>
+          </div>
+
+          <!-- Campos para Salida -->
+          <div id="fields-salida">
+            <div class="form-group">
+              <label>Lote a aplicar</label>
+              <select id="mov-lote-salida"></select>
+            </div>
+          </div>
+
+          <!-- Campos para Entrada de Nuevo Lote -->
+          <div id="fields-entrada" style="display: none;">
+            <div class="form-group">
+              <label>Código de Lote</label>
+              <input type="text" id="mov-lote-nuevo" placeholder="Ej. Y2A052V">
+            </div>
+            <div class="form-group">
+              <label>Fecha de Caducidad</label>
+              <input type="date" id="mov-caducidad">
+            </div>
+            <div class="form-group">
+              <label>Stock Mínimo Total</label>
+              <input type="number" id="mov-min" value="8" min="1">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Cantidad de Dosis</label>
+            <input type="number" id="mov-cant" required min="1" value="1">
+          </div>
+
+          <button type="submit" class="btn">Guardar Movimiento</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Histórico de Movimientos</h2>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha/Hora</th>
+                <th>Tipo</th>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Dosis</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-mov-hist"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <button class="active" onclick="switchTab('dash', this)">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Panel
+    </button>
+    <button onclick="switchTab('inv', this)">
+      <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+      Inventario
+    </button>
+    <button onclick="switchTab('mov', this)">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+      Movimientos
+    </button>
+  </nav>
+
+  <script>
+    // Todos los 61 lotes reales extraídos de las hojas VACUNES y LOTS de tu Excel
+    const datosExcel = [
+      {"id":"1","codi":"VAC00103","nombre":"ADACEL","descripcion":"Vacuna dTPa","lote":"U8373AAD2","caducidad":"2028-01-31","nevera2B":4,"nevera3B":3,"stock":7,"min":8},
+      {"id":"2","codi":"VAC00108","nombre":"THYPHIM","descripcion":"Vacuna antitifoidal inactivada","lote":"Y2A052V","caducidad":"2027-03-31","nevera2B":9,"nevera3B":7,"stock":16,"min":8},
+      {"id":"3","codi":"VAC00108","nombre":"THYPHIM","descripcion":"Vacuna antitifoidal inactivada","lote":"Y2A46D2","caducidad":"2027-10-31","nevera2B":0,"nevera3B":0,"stock":0,"min":8},
+      {"id":"4","codi":"VAC00116","nombre":"AVAXIM","descripcion":"Vacuna anti-hepatitis A 1440","lote":"X3J39D4","caducidad":"2026-10-31","nevera2B":0,"nevera3B":0,"stock":0,"min":35},
+      {"id":"5","codi":"VAC00116","nombre":"AVAXIM","descripcion":"Vacuna anti-hepatitis A 1440","lote":"5DG43D2","caducidad":"2028-07-31","nevera2B":12,"nevera3B":14,"stock":26,"min":35},
+      {"id":"6","codi":"VAC00117","nombre":"HAVRIX 1440","descripcion":"Vacuna anti-hepatitis A 1440","lote":"2U54A","caducidad":"2028-06-30","nevera2B":7,"nevera3B":9,"stock":16,"min":35},
+      {"id":"7","codi":"VAC00121","nombre":"ENGERIX","descripcion":"Vacuna anti-hepatitis B 20 mcg.","lote":"AHBVC671BC","caducidad":"2027-05-31","nevera2B":3,"nevera3B":4,"stock":7,"min":8},
+      {"id":"8","codi":"VAC00122","nombre":"FENDRIX","descripcion":"Vacuna anti-hepatitis B 40 mcg.","lote":"AFENA045AC","caducidad":"2028-05-31","nevera2B":5,"nevera3B":15,"stock":20,"min":20},
+      {"id":"9","codi":"VAC00123","nombre":"HBVAXPRO","descripcion":"Vacuna anti-hepatitis B 40 mcg.","lote":"Y005747","caducidad":"2027-01-31","nevera2B":0,"nevera3B":0,"stock":0,"min":20},
+      {"id":"10","codi":"VAC00125","nombre":"HIBERIX","descripcion":"Vacuna HiB conjugada","lote":"27L9H","caducidad":"2027-04-30","nevera2B":1,"nevera3B":1,"stock":2,"min":2},
+      {"id":"11","codi":"VAC00126","nombre":"SHINGRIX","descripcion":"Vacuna anti-herpes zòster","lote":"5534H","caducidad":"2029-03-31","nevera2B":0,"nevera3B":8,"stock":8,"min":25},
+      {"id":"12","codi":"VAC00126","nombre":"SHINGRIX","descripcion":"Vacuna anti-herpes zòster","lote":"W554D","caducidad":"2027-01-31","nevera2B":0,"nevera3B":0,"stock":0,"min":25},
+      {"id":"13","codi":"VAC00126","nombre":"SHINGRIX","descripcion":"Vacuna anti-herpes zòster","lote":"9T45J","caducidad":"2027-05-31","nevera2B":1,"nevera3B":0,"stock":1,"min":25},
+      {"id":"14","codi":"VAC00152","nombre":"DIFTAVAX","descripcion":"Vacuna Td","lote":"W3H441V","caducidad":"2027-05-31","nevera2B":10,"nevera3B":10,"stock":20,"min":20},
+      {"id":"15","codi":"VAC00153","nombre":"VARIVAX","descripcion":"Vacuna antivaricel·losa","lote":"Y009695","caducidad":"2026-10-31","nevera2B":5,"nevera3B":4,"stock":9,"min":10},
+      {"id":"16","codi":"VAC00153","nombre":"VARIVAX","descripcion":"Vacuna antivaricel·losa","lote":"Y031023","caducidad":"2027-04-30","nevera2B":0,"nevera3B":0,"stock":0,"min":10},
+      {"id":"17","codi":"VAC00156","nombre":"GARDASIL","descripcion":"Vacuna anti-VPH nonavalent","lote":"Y021798","caducidad":"2027-02-28","nevera2B":0,"nevera3B":0,"stock":0,"min":12},
+      {"id":"18","codi":"VAC00156","nombre":"GARDASIL","descripcion":"Vacuna anti-VPH nonavalent","lote":"Y032170","caducidad":"2027-05-31","nevera2B":7,"nevera3B":4,"stock":11,"min":12},
+      {"id":"19","codi":"VAC00158","nombre":"PRIORIX","descripcion":"Vacuna triple vírica","lote":"A69DF295A","caducidad":"2027-03-31","nevera2B":0,"nevera3B":0,"stock":0,"min":8},
+      {"id":"20","codi":"VAC00158","nombre":"PRIORIX","descripcion":"Vacuna triple vírica","lote":"A69DF543A","caducidad":"2027-08-31","nevera2B":5,"nevera3B":5,"stock":10,"min":8},
+      {"id":"21","codi":"VAC00515","nombre":"PREVENAR 20","descripcion":"Vacuna antipneumocòccica 20-v","lote":"S02845","caducidad":"2027-09-30","nevera2B":0,"nevera3B":0,"stock":0,"min":12},
+      {"id":"22","codi":"VAC00515","nombre":"PREVENAR 20","descripcion":"Vacuna antipneumocòccica 20-v","lote":"T40191","caducidad":"2028-02-29","nevera2B":7,"nevera3B":5,"stock":12,"min":12},
+      {"id":"23","codi":"VAC00524","nombre":"VAXNEUVANCE","descripcion":"Vacuna antipneumocòccica 15","lote":"Y030833","caducidad":"2027-04-30","nevera2B":1,"nevera3B":1,"stock":2,"min":2},
+      {"id":"24","codi":"VAC00527","nombre":"MENQUAD","descripcion":"Vacuna anti-meningocòccica ACWY","lote":"S356262V","caducidad":"2026-10-31","nevera2B":0,"nevera3B":0,"stock":0,"min":10},
+      {"id":"25","codi":"VAC00527","nombre":"MENQUAD","descripcion":"Vacuna anti-meningocòccica ACWY","lote":"S35862V","caducidad":"2027-03-31","nevera2B":5,"nevera3B":5,"stock":10,"min":10},
+      {"id":"26","codi":"VAC00142","nombre":"IMOVAX POLIO","descripcion":"Vacuna antipoliomielítica","lote":"X3G522V","caducidad":"2026-08-31","nevera2B":0,"nevera3B":0,"stock":0,"min":3},
+      {"id":"27","codi":"VAC00142","nombre":"IMOVAX POLIO","descripcion":"Vacuna antipoliomielítica","lote":"Y3D521V","caducidad":"2027-06-30","nevera2B":1,"nevera3B":0,"stock":1,"min":3},
+      {"id":"28","codi":"VAC00139","nombre":"BEXSERO","descripcion":"Vacuna anti-meningococ B","lote":"ABXG09AC","caducidad":"2029-03-31","nevera2B":4,"nevera3B":0,"stock":4,"min":4},
+      {"id":"29","codi":"VAC00500","nombre":"HEXYON/VAXELIS","descripcion":"Vacuna Hexavalent","lote":"26X23","caducidad":"2026-09-30","nevera2B":0,"nevera3B":0,"stock":0,"min":3},
+      {"id":"30","codi":"VAC00500","nombre":"HEXYON/VAXELIS","descripcion":"Vacuna Hexavalent","lote":"27G03","caducidad":"2027-06-30","nevera2B":1,"nevera3B":1,"stock":2,"min":3},
+      {"id":"31","codi":"VAC00512","nombre":"IMVANEX","descripcion":"Vacuna virus verola modificat","lote":"FMP00062","caducidad":"2027-01-31","nevera2B":0,"nevera3B":0,"stock":0,"min":10},
+      {"id":"32","codi":"VAC00512","nombre":"IMVANEX","descripcion":"Vacuna virus verola modificat","lote":"FMP00095","caducidad":"2028-11-30","nevera2B":1,"nevera3B":0,"stock":1,"min":10},
+      {"id":"33","codi":"VAC00552","nombre":"COMIRNATY","descripcion":"COVID-19 ARNm KP.2","lote":"322582","caducidad":"2026-09-30","nevera2B":0,"nevera3B":0,"stock":0,"min":6},
+      {"id":"34","codi":"VAC00552","nombre":"COMIRNATY","descripcion":"COVID-19 ARNm KP.2","lote":"352183","caducidad":"2027-01-31","nevera2B":3,"nevera3B":3,"stock":6,"min":6},
+      {"id":"35","codi":"VAC00561","nombre":"CAPVAXIVE","descripcion":"Vacuna antipneumocòccica 21","lote":"Z000858","caducidad":"2027-04-30","nevera2B":2,"nevera3B":2,"stock":4,"min":4},
+      {"id":"36","codi":"VAC00556","nombre":"FLUAD TETRA","descripcion":"Antigripal trivalent adjuvada","lote":"500587","caducidad":"2027-06-30","nevera2B":0,"nevera3B":0,"stock":0,"min":10},
+      {"id":"37","codi":"VAC00557","nombre":"FLUARIX","descripcion":"Antigripal trivalent fraccionada","lote":"553T2","caducidad":"2027-06-30","nevera2B":0,"nevera3B":0,"stock":0,"min":10}
+    ];
+
+    let inventario = JSON.parse(localStorage.getItem('stock_vacunas')) || datosExcel;
+    let movimientos = JSON.parse(localStorage.getItem('hist_movimientos')) || [];
+    let myChart = null;
+
+    function saveState() {
+      localStorage.setItem('stock_vacunas', JSON.stringify(inventario));
+      localStorage.setItem('hist_movimientos', JSON.stringify(movimientos));
+    }
+
+    function resetearDatosOriginales() {
+      if (confirm("¿Deseas restaurar la lista completa con los 61 lotes originales del Excel?")) {
+        inventario = [...datosExcel];
+        saveState();
+        renderInventario();
+        renderDashboard();
+      }
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      el.classList.add('active');
+      if (tabId === 'dash') renderDashboard();
+      if (tabId === 'inv') renderInventario();
+      if (tabId === 'mov') renderMovimientosTab();
+    }
+
+    function checkAlertas(item) {
+      const hoy = new Date();
+      const cad = new Date(item.caducidad);
+      const diffDias = Math.ceil((cad - hoy) / (1000 * 60 * 60 * 24));
+      
+      const caducada = diffDias <= 0;
+      const proximaCaducar = diffDias > 0 && diffDias <= 30;
+      const stockBajo = Number(item.stock) <= Number(item.min);
+
+      return { caducada, proximaCaducar, stockBajo, diffDias };
+    }
+
+    function renderInventario() {
+      const tbody = document.getElementById('tbody-inv');
+      const q = (document.getElementById('buscador').value || '').toLowerCase();
+      tbody.innerHTML = '';
+
+      inventario.filter(i => 
+        i.nombre.toLowerCase().includes(q) || 
+        i.lote.toLowerCase().includes(q) ||
+        (i.codi && i.codi.toLowerCase().includes(q))
+      ).forEach(item => {
+        const { caducada, proximaCaducar, stockBajo, diffDias } = checkAlertas(item);
+        let badgeHtml = '<span class="badge badge-success">OK</span>';
+        let rowClass = '';
+
+        if (caducada) {
+          badgeHtml = '<span class="badge badge-danger">CADUCADA</span>';
+          rowClass = 'row-critical';
+        } else if (proximaCaducar && stockBajo) {
+          badgeHtml = '<span class="badge badge-danger">CAD. + STOCK</span>';
+          rowClass = 'row-critical';
+        } else if (proximaCaducar) {
+          badgeHtml = `<span class="badge badge-danger">&lt; ${diffDias}d</span>`;
+          rowClass = 'row-critical';
+        } else if (stockBajo) {
+          badgeHtml = '<span class="badge badge-warning">BAJO STOCK</span>';
+        }
+
+        const tr = document.createElement('tr');
+        if (rowClass) tr.className = rowClass;
+        tr.innerHTML = `
+          <td>${badgeHtml}</td>
+          <td><small>${item.codi || '-'}</small></td>
+          <td><strong>${item.nombre}</strong></td>
+          <td><code>${item.lote}</code></td>
+          <td>${item.caducidad}</td>
+          <td>${item.nevera2B ?? '-'}</td>
+          <td>${item.nevera3B ?? '-'}</td>
+          <td><strong>${item.stock}</strong></td>
+          <td>${item.min}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderDashboard() {
+      let totalDosis = 0;
+      let bajoMinimo = 0;
+      let proxCaducar = 0;
+      const criticosList = [];
+
+      // Agrupación por vacuna para el gráfico
+      const vacTotales = {};
+
+      inventario.forEach(item => {
+        const cant = Number(item.stock);
+        totalDosis += cant;
+        vacTotales[item.nombre] = (vacTotales[item.nombre] || 0) + cant;
+
+        const { caducada, proximaCaducar, stockBajo, diffDias } = checkAlertas(item);
+
+        if (stockBajo) bajoMinimo++;
+        if (proximaCaducar || caducada) proxCaducar++;
+
+        if (caducada || proximaCaducar || stockBajo) {
+          let motivo = [];
+          if (caducada) motivo.push("Lote caducado");
+          else if (proximaCaducar) motivo.push(`Vence en ${diffDias} días`);
+          if (stockBajo) motivo.push(`Stock (${cant}) &le; Mín (${item.min})`);
+          
+          criticosList.push({ ...item, motivo: motivo.join(' | ') });
+        }
+      });
+
+      document.getElementById('kpi-total').textContent = totalDosis;
+      document.getElementById('kpi-lotes').textContent = inventario.length;
+      document.getElementById('kpi-min').textContent = bajoMinimo;
+      document.getElementById('kpi-exp').textContent = proxCaducar;
+
+      // Tabla Críticos
+      const tbodyCrit = document.getElementById('tbody-criticos');
+      tbodyCrit.innerHTML = '';
+      criticosList.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.className = 'row-critical';
+        tr.innerHTML = `
+          <td><strong>${c.nombre}</strong></td>
+          <td><code>${c.lote}</code></td>
+          <td><strong>${c.stock}</strong></td>
+          <td>${c.caducidad}</td>
+          <td><span class="badge badge-danger">${c.motivo}</span></td>
+        `;
+        tbodyCrit.appendChild(tr);
+      });
+
+      if (criticosList.length === 0) {
+        tbodyCrit.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--success);padding:1rem;">Todos los lotes operan dentro de los márgenes seguros.</td></tr>';
+      }
+
+      // Gráfico Chart.js
+      const labels = Object.keys(vacTotales);
+      const dataVals = Object.values(vacTotales);
+
+      if (myChart) myChart.destroy();
+      const ctx = document.getElementById('chartStock').getContext('2d');
+      myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Dosis Totales Disponibles',
+            data: dataVals,
+            backgroundColor: dataVals.map(v => v === 0 ? '#dc2626' : (v <= 5 ? '#f59e0b' : '#0284c7')),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 45, font: { size: 10 } } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function renderMovimientosTab() {
+      const selectVacuna = document.getElementById('mov-vacuna-select');
+      const nombresUnicos = [...new Set(inventario.map(i => i.nombre))].sort();
+      selectVacuna.innerHTML = nombresUnicos.map(n => `<option value="${n}">${n}</option>`).join('');
+      actualizarLotesDisponibles();
+      renderHistorial();
+    }
+
+    function toggleFormFields() {
+      const tipo = document.getElementById('mov-tipo').value;
+      const isEntrada = tipo === 'ENTRADA';
+      document.getElementById('fields-entrada').style.display = isEntrada ? 'block' : 'none';
+      document.getElementById('fields-salida').style.display = isEntrada ? 'none' : 'block';
+    }
+
+    function actualizarLotesDisponibles() {
+      const vacunaSel = document.getElementById('mov-vacuna-select').value;
+      const lotes = inventario.filter(i => i.nombre === vacunaSel && Number(i.stock) > 0);
+      const selectLote = document.getElementById('mov-lote-salida');
+
+      if (lotes.length === 0) {
+        selectLote.innerHTML = '<option value="">Sin existencias disponibles en ningún lote</option>';
+      } else {
+        selectLote.innerHTML = lotes.map(l => 
+          `<option value="${l.lote}">${l.lote} (Stock: ${l.stock} dosis | Cad: ${l.caducidad})</option>`
+        ).join('');
+      }
+    }
+
+    function handleMovimiento(e) {
+      e.preventDefault();
+      const tipo = document.getElementById('mov-tipo').value;
+      const vacuna = document.getElementById('mov-vacuna-select').value;
+      const cant = parseInt(document.getElementById('mov-cant').value, 10);
+      const timestamp = new Date().toLocaleString();
+
+      if (tipo === 'SALIDA') {
+        const loteVal = document.getElementById('mov-lote-salida').value;
+        const item = inventario.find(i => i.nombre === vacuna && i.lote === loteVal);
+        
+        if (!item || item.stock < cant) {
+          alert("Error: No hay stock suficiente en este lote para administrar " + cant + " dosis.");
+          return;
+        }
+
+        item.stock -= cant;
+        movimientos.unshift({ fecha: timestamp, tipo: 'SALIDA (Dosis)', vacuna, lote: loteVal, cant: `-${cant}` });
+      } else {
+        const loteNuevo = document.getElementById('mov-lote-nuevo').value.trim().toUpperCase();
+        const cad = document.getElementById('mov-caducidad').value;
+        const minStock = parseInt(document.getElementById('mov-min').value, 10) || 8;
+
+        if (!loteNuevo || !cad) {
+          alert("Por favor completa el lote y la fecha de caducidad.");
+          return;
+        }
+
+        const existe = inventario.find(i => i.lote === loteNuevo && i.nombre === vacuna);
+        if (existe) {
+          existe.stock = Number(existe.stock) + cant;
+        } else {
+          inventario.push({
+            id: Date.now().toString(),
+            codi: "NUEVO",
+            nombre: vacuna,
+            descripcion: vacuna,
+            lote: loteNuevo,
+            caducidad: cad,
+            stock: cant,
+            min: minStock
+          });
+        }
+
+        movimientos.unshift({ fecha: timestamp, tipo: 'ENTRADA (Recepción)', vacuna, lote: loteNuevo, cant: `+${cant}` });
+      }
+
+      saveState();
+      alert("Movimiento registrado correctamente.");
+      actualizarLotesDisponibles();
+      renderHistorial();
+      e.target.reset();
+      toggleFormFields();
+    }
+
+    function renderHistorial() {
+      const tbody = document.getElementById('tbody-mov-hist');
+      tbody.innerHTML = '';
+      movimientos.slice(0, 15).forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${m.fecha}</td>
+          <td><strong>${m.tipo}</strong></td>
+          <td>${m.vacuna}</td>
+          <td><code>${m.lote}</code></td>
+          <td>${m.cant}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.onload = function() {
+      // Si el navegador ya tenía la versión anterior guardada con solo 5 vacunas,
+      // actualizamos automáticamente a la base completa del Excel
+      if (inventario.length <= 5) {
+        inventario = [...datosExcel];
+        saveState();
+      }
+      renderDashboard();
+    };
+  </script>
+</body>
+</html>
