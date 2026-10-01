@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gestión de Stock de Vacunas</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --danger: #dc2626;
+      --danger-bg: #fee2e2;
+      --warning: #d97706;
+      --warning-bg: #fef3c7;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 70px; }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    header h1 { font-size: 1.15rem; font-weight: 700; }
+    header span { font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; }
+
+    nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 0.5rem 0;
+      z-index: 100;
+    }
+    nav button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      width: 100%;
+    }
+    nav button.active { color: var(--primary); font-weight: bold; }
+    nav button svg { width: 22px; height: 22px; fill: currentColor; }
+
+    main { padding: 1rem; max-width: 1000px; margin: 0 auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .grid-kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .kpi-card {
+      background: var(--card);
+      padding: 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .kpi-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+    .kpi-val { font-size: 1.4rem; font-weight: bold; margin-top: 4px; }
+    .kpi-val.danger { color: var(--danger); }
+    .kpi-val.warning { color: var(--warning); }
+
+    .chart-container {
+      background: var(--card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--primary-dark); }
+
+    .form-group { margin-bottom: 0.85rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+    input, select {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background-color: white;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn:active { background: var(--primary-dark); }
+
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+    th, td { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--border); }
+    th { background: #f1f5f9; color: var(--text-muted); font-weight: 600; }
+    
+    .badge {
+      display: inline-block;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-danger { background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .badge-warning { background-color: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+    .badge-success { background-color: var(--success-bg); color: var(--success); }
+    .row-critical { background-color: #fff1f2; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>StockVacunas Pro</h1>
+    <span>Frío: 2°C a 8°C</span>
+  </header>
+
+  <main>
+    <!-- TAB 1: DASHBOARD -->
+    <section id="tab-dash" class="tab-content active">
+      <div class="grid-kpi">
+        <div class="kpi-card">
+          <div class="kpi-title">Dosis Totales</div>
+          <div class="kpi-val" id="kpi-total">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Stock Mínimo</div>
+          <div class="kpi-val warning" id="kpi-min">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Caducan &lt;30d</div>
+          <div class="kpi-val danger" id="kpi-exp">0</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h2>Existencias por Vacuna</h2>
+        <canvas id="chartStock" height="200"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Lotes con Riesgo / Críticos</h2>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Caducidad</th>
+                <th>Motivo Alerta</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-criticos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: INVENTARIO -->
+    <section id="tab-inv" class="tab-content">
+      <div class="card">
+        <h2>Inventario en Tiempo Real</h2>
+        <div class="form-group">
+          <input type="text" id="buscador" placeholder="Filtrar por vacuna o lote..." oninput="renderInventario()">
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Fabricante</th>
+                <th>Caducidad</th>
+                <th>Dosis</th>
+                <th>Mín.</th>
+                <th>Temp.</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inv"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: REGISTRO DE MOVIMIENTOS -->
+    <section id="tab-mov" class="tab-content">
+      <div class="card">
+        <h2>Registrar Entrada / Salida</h2>
+        <form id="form-movimiento" onsubmit="handleMovimiento(event)">
+          <div class="form-group">
+            <label>Tipo de Operación</label>
+            <select id="mov-tipo" required onchange="toggleFormFields()">
+              <option value="SALIDA">Salida: Aplicación a paciente / Dosis administrada</option>
+              <option value="ENTRADA">Entrada: Recepción de nuevo lote / Stock</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Vacuna</label>
+            <select id="mov-vacuna-select" required onchange="actualizarLotesDisponibles()">
+              <!-- Opciones automáticas -->
+            </select>
+          </div>
+
+          <!-- Campos para Salida -->
+          <div id="fields-salida">
+            <div class="form-group">
+              <label>Lote a aplicar</label>
+              <select id="mov-lote-salida"></select>
+            </div>
+          </div>
+
+          <!-- Campos para Entrada de Nuevo Lote -->
+          <div id="fields-entrada" style="display: none;">
+            <div class="form-group">
+              <label>Código de Lote</label>
+              <input type="text" id="mov-lote-nuevo" placeholder="Ej. Y2A052V">
+            </div>
+            <div class="form-group">
+              <label>Fabricante</label>
+              <input type="text" id="mov-fab" placeholder="Ej. Sanofi Pasteur">
+            </div>
+            <div class="form-group">
+              <label>Fecha de Caducidad</label>
+              <input type="date" id="mov-caducidad">
+            </div>
+            <div class="form-group">
+              <label>Temperatura Óptima</label>
+              <input type="text" id="mov-temp" value="+2°C a +8°C">
+            </div>
+            <div class="form-group">
+              <label>Stock Mínimo Permitido</label>
+              <input type="number" id="mov-min" value="10" min="1">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Cantidad de Dosis</label>
+            <input type="number" id="mov-cant" required min="1" value="1">
+          </div>
+
+          <button type="submit" class="btn">Confirmar Registro</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Histórico de Movimientos Recientes</h2>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha/Hora</th>
+                <th>Tipo</th>
+                <th>Vacuna</th>
+                <th>Lote</th>
+                <th>Dosis</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-mov-hist"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <button class="active" onclick="switchTab('dash', this)">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Panel
+    </button>
+    <button onclick="switchTab('inv', this)">
+      <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+      Inventario
+    </button>
+    <button onclick="switchTab('mov', this)">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+      Movimientos
+    </button>
+  </nav>
+
+  <script>
+    // Inicialización del catálogo precargado
+    const defaultVacunas = [
+      { id: "1", nombre: "ADACEL (dTPa)", lote: "U8373AAD2", fabricante: "Sanofi Pasteur", caducidad: "2028-01-31", stock: 7, min: 8, temp: "+2°C a +8°C" },
+      { id: "2", nombre: "THYPHIM (Antitifoidea)", lote: "Y2A052V", fabricante: "Sanofi Pasteur", caducidad: "2027-03-31", stock: 16, min: 8, temp: "+2°C a +8°C" },
+      { id: "3", nombre: "AVAXIM (Hepatitis A)", lote: "5DG43D2", fabricante: "Sanofi Pasteur", caducidad: "2028-07-31", stock: 26, min: 35, temp: "+2°C a +8°C" },
+      { id: "4", nombre: "SHINGRIX (Herpes Zóster)", lote: "5534H", fabricante: "GSK", caducidad: "2029-03-31", stock: 10, min: 5, temp: "+2°C a +8°C" },
+      { id: "5", nombre: "BEXSERO (Meningococo B)", lote: "ABXG09AC", fabricante: "GSK", caducidad: "2026-10-25", stock: 4, min: 6, temp: "+2°C a +8°C" }
+    ];
+
+    let inventario = JSON.parse(localStorage.getItem('stock_vacunas')) || defaultVacunas;
+    let movimientos = JSON.parse(localStorage.getItem('hist_movimientos')) || [];
+    let myChart = null;
+
+    function saveState() {
+      localStorage.setItem('stock_vacunas', JSON.stringify(inventario));
+      localStorage.setItem('hist_movimientos', JSON.stringify(movimientos));
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      el.classList.add('active');
+      if (tabId === 'dash') renderDashboard();
+      if (tabId === 'inv') renderInventario();
+      if (tabId === 'mov') renderMovimientosTab();
+    }
+
+    function checkAlertas(item) {
+      const hoy = new Date();
+      const cad = new Date(item.caducidad);
+      const diffDias = Math.ceil((cad - hoy) / (1000 * 60 * 60 * 24));
+      
+      const caducada = diffDias <= 0;
+      const proximaCaducar = diffDias > 0 && diffDias <= 30;
+      const stockBajo = item.stock <= item.min;
+
+      return { caducada, proximaCaducar, stockBajo, diffDias };
+    }
+
+    function renderInventario() {
+      const tbody = document.getElementById('tbody-inv');
+      const q = (document.getElementById('buscador').value || '').toLowerCase();
+      tbody.innerHTML = '';
+
+      inventario.filter(i => i.nombre.toLowerCase().includes(q) || i.lote.toLowerCase().includes(q))
+        .forEach(item => {
+          const { caducada, proximaCaducar, stockBajo, diffDias } = checkAlertas(item);
+          let badgeHtml = '<span class="badge badge-success">OK</span>';
+          let rowClass = '';
+
+          if (caducada) {
+            badgeHtml = '<span class="badge badge-danger">CADUCADA</span>';
+            rowClass = 'row-critical';
+          } else if (proximaCaducar && stockBajo) {
+            badgeHtml = '<span class="badge badge-danger">CRÍTICO: CAD. + STOCK</span>';
+            rowClass = 'row-critical';
+          } else if (proximaCaducar) {
+            badgeHtml = `<span class="badge badge-danger">&lt; ${diffDias}d CAD</span>`;
+            rowClass = 'row-critical';
+          } else if (stockBajo) {
+            badgeHtml = '<span class="badge badge-warning">BAJO STOCK</span>';
+          }
+
+          const tr = document.createElement('tr');
+          if (rowClass) tr.className = rowClass;
+          tr.innerHTML = `
+            <td>${badgeHtml}</td>
+            <td><strong>${item.nombre}</strong></td>
+            <td><code>${item.lote}</code></td>
+            <td>${item.fabricante}</td>
+            <td>${item.caducidad}</td>
+            <td><strong>${item.stock}</strong></td>
+            <td>${item.min}</td>
+            <td>${item.temp}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+    }
+
+    function renderDashboard() {
+      let totalDosis = 0;
+      let bajoMinimo = 0;
+      let proxCaducar = 0;
+      const criticosList = [];
+
+      inventario.forEach(item => {
+        totalDosis += Number(item.stock);
+        const { caducada, proximaCaducar, stockBajo, diffDias } = checkAlertas(item);
+
+        if (stockBajo) bajoMinimo++;
+        if (proximaCaducar || caducada) proxCaducar++;
+
+        if (caducada || proximaCaducar || stockBajo) {
+          let motivo = [];
+          if (caducada) motivo.push("Lote caducado");
+          else if (proximaCaducar) motivo.push(`Vence en ${diffDias} días`);
+          if (stockBajo) motivo.push(`Stock (${item.stock}) &le; Mín (${item.min})`);
+          
+          criticosList.push({ ...item, motivo: motivo.join(' | ') });
+        }
+      });
+
+      document.getElementById('kpi-total').textContent = totalDosis;
+      document.getElementById('kpi-min').textContent = bajoMinimo;
+      document.getElementById('kpi-exp').textContent = proxCaducar;
+
+      // Tabla Lotes Críticos
+      const tbodyCrit = document.getElementById('tbody-criticos');
+      tbodyCrit.innerHTML = '';
+      criticosList.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.className = 'row-critical';
+        tr.innerHTML = `
+          <td><strong>${c.nombre}</strong></td>
+          <td><code>${c.lote}</code></td>
+          <td>${c.caducidad}</td>
+          <td><span class="badge badge-danger">${c.motivo}</span></td>
+        `;
+        tbodyCrit.appendChild(tr);
+      });
+      if (criticosList.length === 0) {
+        tbodyCrit.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--success);">Todos los lotes operan dentro de los márgenes seguros.</td></tr>';
+      }
+
+      // Gráfico Chart.js
+      const labels = inventario.map(i => i.nombre.split(' ')[0]);
+      const dataVals = inventario.map(i => i.stock);
+      const bgColors = inventario.map(i => {
+        const { caducada, proximaCaducar, stockBajo } = checkAlertas(i);
+        return (caducada || proximaCaducar || stockBajo) ? '#dc2626' : '#0284c7';
+      });
+
+      if (myChart) myChart.destroy();
+      const ctx = document.getElementById('chartStock').getContext('2d');
+      myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Dosis Disponibles',
+            data: dataVals,
+            backgroundColor: bgColors,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    function renderMovimientosTab() {
+      const selectVacuna = document.getElementById('mov-vacuna-select');
+      const nombresUnicos = [...new Set(inventario.map(i => i.nombre))];
+      
+      selectVacuna.innerHTML = nombresUnicos.map(n => `<option value="${n}">${n}</option>`).join('');
+      actualizarLotesDisponibles();
+      renderHistorial();
+    }
+
+    function toggleFormFields() {
+      const tipo = document.getElementById('mov-tipo').value;
+      const isEntrada = tipo === 'ENTRADA';
+      document.getElementById('fields-entrada').style.display = isEntrada ? 'block' : 'none';
+      document.getElementById('fields-salida').style.display = isEntrada ? 'none' : 'block';
+    }
+
+    function actualizarLotesDisponibles() {
+      const vacunaSel = document.getElementById('mov-vacuna-select').value;
+      const lotesDisponibles = inventario.filter(i => i.nombre === vacunaSel && i.stock > 0);
+      const selectLote = document.getElementById('mov-lote-salida');
+
+      if (lotesDisponibles.length === 0) {
+        selectLote.innerHTML = '<option value="">Sin stock disponible</option>';
+      } else {
+        selectLote.innerHTML = lotesDisponibles.map(l => 
+          `<option value="${l.lote}">${l.lote} (Dosis: ${l.stock}, Cad: ${l.caducidad})</option>`
+        ).join('');
+      }
+    }
+
+    function handleMovimiento(e) {
+      e.preventDefault();
+      const tipo = document.getElementById('mov-tipo').value;
+      const vacuna = document.getElementById('mov-vacuna-select').value;
+      const cant = parseInt(document.getElementById('mov-cant').value, 10);
+      const timestamp = new Date().toLocaleString();
+
+      if (tipo === 'SALIDA') {
+        const loteVal = document.getElementById('mov-lote-salida').value;
+        const item = inventario.find(i => i.nombre === vacuna && i.lote === loteVal);
+        
+        if (!item || item.stock < cant) {
+          alert("Error: Stock insuficiente en el lote seleccionado para realizar la administración.");
+          return;
+        }
+
+        item.stock -= cant;
+        movimientos.unshift({ fecha: timestamp, tipo: 'SALIDA (Paciente)', vacuna, lote: loteVal, cant: `-${cant}` });
+      } else {
+        const loteNuevo = document.getElementById('mov-lote-nuevo').value.trim().toUpperCase();
+        const fab = document.getElementById('mov-fab').value.trim() || 'Estándar';
+        const cad = document.getElementById('mov-caducidad').value;
+        const temp = document.getElementById('mov-temp').value;
+        const minStock = parseInt(document.getElementById('mov-min').value, 10) || 5;
+
+        if (!loteNuevo || !cad) {
+          alert("Por favor completa el lote y la fecha de caducidad.");
+          return;
+        }
+
+        const existe = inventario.find(i => i.lote === loteNuevo && i.nombre === vacuna);
+        if (existe) {
+          existe.stock += cant;
+        } else {
+          inventario.push({
+            id: Date.now().toString(),
+            nombre: vacuna,
+            lote: loteNuevo,
+            fabricante: fab,
+            caducidad: cad,
+            stock: cant,
+            min: minStock,
+            temp: temp
+          });
+        }
+
+        movimientos.unshift({ fecha: timestamp, tipo: 'ENTRADA (Recepción)', vacuna, lote: loteNuevo, cant: `+${cant}` });
+      }
+
+      saveState();
+      alert("Movimiento procesado con éxito.");
+      e.target.reset();
+      toggleFormFields();
+      actualizarLotesDisponibles();
+      renderHistorial();
+    }
+
+    function renderHistorial() {
+      const tbody = document.getElementById('tbody-mov-hist');
+      tbody.innerHTML = '';
+      movimientos.slice(0, 10).forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${m.fecha}</td>
+          <td><strong>${m.tipo}</strong></td>
+          <td>${m.vacuna}</td>
+          <td><code>${m.lote}</code></td>
+          <td>${m.cant}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Arranque inicial
+    window.onload = function() {
+      renderDashboard();
+    };
+  </script>
+</body>
+</html>
